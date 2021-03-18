@@ -2,10 +2,14 @@ const express = require("express");
 const app = express();
 const User = require("./model/schema");
 const path = require("path");
+const cookieparser=require("cookie-parser");
 const hbs = require("hbs");
+const auth=require("./auth/auth");
 const bcrypt=require("bcrypt");
+const { cursorTo } = require("readline");
+require('dotenv').config()
 require("./conn/index");
-
+app.use(cookieparser());
 app.set('view engine', 'hbs');
 const template_path = path.join(__dirname, "../templates/views");
 const partial_path = path.join(__dirname, "../templates/partials");
@@ -15,6 +19,9 @@ hbs.registerPartials(partial_path);
 app.use(express.urlencoded({ extended: false }));
 app.get("", (req, res) => {
     res.render("index");
+});
+app.get("/secret",auth,(req,res)=>{
+    res.render("secret");
 });
 app.get("/login", (req, res) => {
     res.render("login");
@@ -32,6 +39,11 @@ app.post("/register", async (req, res) => {
             }
         )
         const token=await user.generatetoken();
+
+        res.cookie("jwt",token,{
+            expires:new Date(Date.now()+6000000),
+            httpOnly:true
+        });
         const registered=await user.save();
         res.send(registered);
     }
@@ -50,6 +62,10 @@ app.post("/login", async(req, res) => {
         const token=await user.generatetoken();
         if(match)
         {
+            res.cookie("jwt",token,{
+                expires:new Date(Date.now()+6000000),
+                httpOnly:true
+            });
             res.send("fsdv");
         }
         else
@@ -58,6 +74,19 @@ app.post("/login", async(req, res) => {
         }
     }
     res.send("invalid details");
+});
+app.get("/logout",auth,async(req,res)=>{
+    try{
+        
+        req.user.tokens=req.user.tokens.filter((cur)=>{
+            return cur.token!=req.token;
+        });
+        res.clearCookie("jwt");
+        await req.user.save();
+        res.render("index");
+    }catch(err){
+        res.send(err);
+    }
 });
 app.post("*", (req, res) => {
     res.send("hiii");
